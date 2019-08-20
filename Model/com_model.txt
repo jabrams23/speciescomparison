@@ -1,0 +1,82 @@
+#### community occupancy model for species comparison project
+#### by Jesse F. Abrams
+
+
+model{
+  for (s in 1:3){
+    mu.a[s] ~ dunif(-20,20)
+    tau.a[s] <-1/(sigma.a[s]*sigma.a[s])
+    sigma.a[s]~dunif(0,10)
+
+  }
+  
+  mu.bp ~ dnorm(0, 0.01)
+  tau.bp ~ dgamma(0.1, 0.1)
+  sigma.bp<-sqrt(1/tau.bp)
+
+  mu.b1 ~ dnorm(0, 0.01)
+  mu.b2 ~ dnorm(0, 0.01)
+
+  tau.b1~dgamma(0.1, 0.1)
+  tau.b2~dgamma(0.1, 0.1)
+
+  sigma.b1<-sqrt(1/tau.b1)
+  sigma.b2<-sqrt(1/tau.b2)
+
+  b.eff~dunif(-20, 20)
+    
+  for (i in 1:M){
+
+    beta1[i]~dnorm(mu.b1, tau.b1)
+    beta2[i]~dnorm(mu.b2, tau.b2)
+
+    mu.p[i]~dnorm(mu.bp, tau.bp)
+    
+    for(s in 1:3){
+      ###site-specific species-specific intercepts, occupancy and detection
+      alpha[s,i]~dnorm(mu.a[s], tau.a[s])
+    }
+    
+    ###loop over all traps across all sites
+    
+    for (j in 1:J){
+      lpsi[i,j]<-alpha[site[j],i] + beta1[i]*CAN[j] + beta2[i]*HEAT[j]
+
+      psi[i,j]<-exp(lpsi[i,j])/(exp(lpsi[i,j]) + 1)
+      psi.eff[i,j]<-psi[i,j]
+    
+      z[i,j]~dbern(psi.eff[i,j])
+    
+      for (k in 1:maxocc){
+        #species level detection
+        l.psp[i,j,k]<-mu.p[i] + b.eff*efftot[j,k]
+        psp[i,j,k]<-exp(l.psp[i,j,k])/(1+exp(l.psp[i,j,k]))
+    
+        p.eff[i,j,k]<-z[i,j]*psp[i,j,k] * effabs[j,k]
+        y[i,j,k]~dbern(p.eff[i,j,k])
+    
+        ### generate new data from model under consideration
+        new.y[i,j,k]~dbern(p.eff[i,j,k])
+    
+        ### calculate Freeman-Tukey residuals for real and new data
+        res[i,j,k]<-(y[i,j,k] - sqrt(p.eff[i,j,k]) )^2
+        new.res[i,j,k]<-(new.y[i,j,k] - sqrt(p.eff[i,j,k]) )^2
+      }
+    
+      ###sum residuals over occasions
+      R1[i,j]<-sum(res[i,j,])
+      new.R1[i,j]<-sum(new.res[i,j,])
+    }
+    
+    ###sum residuals over sites
+    R2[i]<-sum(R1[i,])
+    new.R2[i]<-sum(new.R1[i,])
+
+  }
+    
+  ###sum residuals over observed species 
+  R3<-sum(R2)  ### number of detected species
+  new.R3<-sum(new.R2)  # number of detected species
+
+}
+    
